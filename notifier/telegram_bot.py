@@ -152,7 +152,8 @@ class TelegramNotifier:
         self.token = token or TELEGRAM_BOT_TOKEN
         self._base = f"https://api.telegram.org/bot{self.token}"
 
-    def _send(self, chat_id: int | str, text: str, parse_mode: str = "HTML") -> bool:
+    def _send(self, chat_id: int | str, text: str, parse_mode: str = "HTML") -> int | None:
+        """Send a message. Returns Telegram message_id on success, None on failure."""
         import requests as req_lib
         url = f"{self._base}/sendMessage"
         try:
@@ -162,12 +163,13 @@ class TelegramNotifier:
                 "parse_mode": parse_mode,
                 "disable_web_page_preview": False,
             }, timeout=10)
-            if not resp.ok:
-                logger.error(f"Telegram HTTP {resp.status_code}: {resp.text}")
-            return resp.ok
+            if resp.ok:
+                return resp.json().get("result", {}).get("message_id")
+            logger.error(f"Telegram HTTP {resp.status_code}: {resp.text}")
+            return None
         except Exception as e:
             logger.error(f"Telegram send error: {e}")
-            return False
+            return None
 
     def _all_targets(self) -> list:
         """All chat IDs to broadcast to: subscribers + public channel (if set)."""
@@ -181,16 +183,32 @@ class TelegramNotifier:
                 pass
         return targets
 
-    def broadcast_alert(self, alert_dict: dict) -> int:
-        """Broadcast a token alert to all subscribers + public channel."""
+    def broadcast_alert(self, alert_dict: dict) -> tuple[int, int | None]:
+        """Broadcast a token alert to all subscribers + public channel.
+        Returns (sent_count, channel_message_id).
+        channel_message_id is the ID of the post in the public channel (for jump links).
+        """
         if not self.token:
-            return 0
-        msg  = format_telegram_alert(alert_dict)
-        ok   = 0
+            return 0, None
+        msg        = format_telegram_alert(alert_dict)
+        ok         = 0
+        channel_id = None
+        channel_msg_id = None
+
+        if TELEGRAM_CHANNEL_ID:
+            try:
+                channel_id = int(TELEGRAM_CHANNEL_ID)
+            except ValueError:
+                pass
+
         for chat_id in self._all_targets():
-            if self._send(chat_id, msg):
+            msg_id = self._send(chat_id, msg)
+            if msg_id:
                 ok += 1
-        return ok
+                # Capture the channel post message ID for jump links
+                if channel_id and chat_id == channel_id:
+                    channel_msg_id = msg_id
+        return ok, channel_msg_id
 
     def broadcast_text(self, text: str) -> int:
         """Broadcast raw HTML text to all subscribers + public channel."""

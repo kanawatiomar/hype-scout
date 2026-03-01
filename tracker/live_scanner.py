@@ -183,7 +183,8 @@ def run_scan(state: dict) -> dict:
             "vol_h1":         live["vol_h1"],
             "buys_h1":        live["buys_h1"],
             "sells_h1":       live["sells_h1"],
-            "discord_msg_id": coin.get("discord_msg_id"),  # jump link to original alert
+            "discord_msg_id":  coin.get("discord_msg_id"),   # jump link to original Discord alert
+            "telegram_msg_id": coin.get("telegram_msg_id"), # jump link to original TG channel post
         })
 
     state["last_scan"] = now

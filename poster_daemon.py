@@ -88,23 +88,24 @@ def release_lock():
 
 # ── Build tracker entry ───────────────────────────────────────────────────────
 
-def make_tracked_entry(d: dict, discord_msg_id: str = None) -> dict:
+def make_tracked_entry(d: dict, discord_msg_id: str = None, telegram_msg_id: int = None) -> dict:
     return {
-        "mint":            d.get("mint"),
-        "name":            d.get("name"),
-        "symbol":          d.get("symbol"),
-        "entry_mc":        d.get("market_cap", 0),
-        "current_mc":      d.get("market_cap", 0),
-        "liquidity_usd":   d.get("liquidity_usd", 0),
-        "vol_h1":          d.get("vol_h1", 0),
-        "buys_h1":         d.get("buys_h1", 0),
-        "sells_h1":        d.get("sells_h1", 0),
-        "bonding_curve":   d.get("bonding_curve_progress", 0),
-        "posted_at":       int(time.time()),
-        "added_at":        datetime.now().isoformat(),
-        "pump_alerts":     {},
-        "last_check":      None,
-        "discord_msg_id":  discord_msg_id,   # original scan alert message ID
+        "mint":              d.get("mint"),
+        "name":              d.get("name"),
+        "symbol":            d.get("symbol"),
+        "entry_mc":          d.get("market_cap", 0),
+        "current_mc":        d.get("market_cap", 0),
+        "liquidity_usd":     d.get("liquidity_usd", 0),
+        "vol_h1":            d.get("vol_h1", 0),
+        "buys_h1":           d.get("buys_h1", 0),
+        "sells_h1":          d.get("sells_h1", 0),
+        "bonding_curve":     d.get("bonding_curve_progress", 0),
+        "posted_at":         int(time.time()),
+        "added_at":          datetime.now().isoformat(),
+        "pump_alerts":       {},
+        "last_check":        None,
+        "discord_msg_id":    discord_msg_id,   # jump to original Discord alert
+        "telegram_msg_id":   telegram_msg_id,  # jump to original Telegram channel post
     }
 
 
@@ -143,14 +144,19 @@ def process_queue():
         # Post to Discord — capture message ID for jump links
         discord_msg_id = discord.post_alert(discord_msg)
 
-        # Post to Telegram subscribers
+        # Post to Telegram — capture channel message ID for jump links
         tg_ok = 0
+        tg_channel_msg_id = None
         if telegram and telegram_msg:
-            tg_ok = telegram.broadcast_alert(best)
+            tg_ok, tg_channel_msg_id = telegram.broadcast_alert(best)
 
         if discord_msg_id:
             posted_mints.add(mint)
-            append_tracked(make_tracked_entry(best, discord_msg_id=discord_msg_id))
+            append_tracked(make_tracked_entry(
+                best,
+                discord_msg_id=discord_msg_id,
+                telegram_msg_id=tg_channel_msg_id,
+            ))
             logger.info(
                 f"✅ {best.get('name')} ${best.get('market_cap', 0):,.0f} "
                 f"| Discord ✓ | Telegram: {tg_ok} subs"

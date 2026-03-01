@@ -127,7 +127,8 @@ def main():
             "peak_mc":        peak_mc,
             "peak_mult":      peak_mult,
             "age_str":        c.get("added_at", "")[:10],
-            "discord_msg_id": c.get("discord_msg_id"),  # jump link to original alert
+            "discord_msg_id":  c.get("discord_msg_id"),
+            "telegram_msg_id": c.get("telegram_msg_id"),
         })
 
     if not leaderboard:
