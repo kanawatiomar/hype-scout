@@ -265,7 +265,7 @@ def format_leaderboard(coins: list, platform: str = "discord") -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     if platform == "telegram":
-        lines = [f"🏆 <b>HYPE SCOUT LEADERBOARD</b> · Top {len(coins)} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
+        lines = [f"🏆 <b>PumpScanner Leaderboard</b> · Top {len(coins)} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
         for i, c in enumerate(coins):
             rank = medal[i] if i < 3 else f"#{i+1}"
             emoji = tier_emoji(c["peak_mult"])
@@ -274,7 +274,7 @@ def format_leaderboard(coins: list, platform: str = "discord") -> str:
                 f"    {fmt_usd(c['entry_mc'])} → {fmt_usd(c['peak_mc'])} | {c.get('age_str', '')}"
             )
     else:
-        lines = [f"🏆 **HYPE SCOUT LEADERBOARD** · Top {len(coins)} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
+        lines = [f"🏆 **PumpScanner Leaderboard** · Top {len(coins)} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
         for i, c in enumerate(coins):
             rank = medal[i] if i < 3 else f"#{i+1}"
             emoji = tier_emoji(c["peak_mult"])
