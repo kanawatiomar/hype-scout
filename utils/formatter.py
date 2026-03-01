@@ -82,7 +82,7 @@ def format_discord_alert(d: dict) -> str:
         vol_line += f"⚡ Vol 5m: **{fmt_usd(vol_m5)}**\n"
 
     return (
-        f"🔥 **{name}** New Trending\n"
+        f"🔥 **{name}** | PumpScanner\n"
         f"⏰ Age: {age_str} | {status}\n"
         f"🔗 {links}\n"
         f"💰 MC: {fmt_usd(mc)} • 🏆 ATH {fmt_usd(ath)}\n"
@@ -141,7 +141,7 @@ def format_telegram_alert(d: dict) -> str:
         vol_line += f"⚡ Vol 5m: <b>{fmt_usd(vol_m5)}</b>\n"
 
     return (
-        f"🔥 <b>{name}</b> New Trending\n"
+        f"🔥 <b>{name}</b> | PumpScanner\n"
         f"⏰ Age: {age_str} | {status}\n"
         f"🔗 {links}\n"
         f"💰 MC: {fmt_usd(mc)} • 🏆 ATH {fmt_usd(ath)}\n"
@@ -196,7 +196,7 @@ def format_single_runner(r: dict, platform: str = "discord") -> str:
     if platform == "telegram":
         return (
             f"📈 <b>{name}</b> is up <b>{mult_display}X</b> 📈\n"
-            f"from ⚡ Entry Signal\n"
+            f"from ⚡ PumpScanner Signal\n"
             f"\n"
             f"{mc_arrow} 💵\n"
             f"\n"
@@ -209,7 +209,7 @@ def format_single_runner(r: dict, platform: str = "discord") -> str:
     else:  # discord
         return (
             f"📈 **{name}** is up **{mult_display}X** 📈\n"
-            f"from ⚡ Entry Signal\n"
+            f"from ⚡ PumpScanner Signal\n"
             f"\n"
             f"{mc_arrow} 💵\n"
             f"\n"
@@ -230,7 +230,7 @@ def format_runner_msg(runners: list, platform: str = "discord") -> str:
     now = datetime.now().strftime("%H:%M")
 
     if platform == "telegram":
-        lines = [f"🔴 <b>LIVE RUNNERS</b> · {count} active {noun} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
+        lines = [f"🔴 <b>PumpScanner Live Runners</b> · {count} active {noun} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
         for r in runners:
             emoji = tier_emoji(r["mult"])
             dex_url  = f"https://dexscreener.com/solana/{r['mint']}"
@@ -242,7 +242,7 @@ def format_runner_msg(runners: list, platform: str = "discord") -> str:
                 f"    <a href=\"{dex_url}\">Chart</a> · <a href=\"{pump_url}\">Pump</a>"
             )
     else:  # discord
-        lines = [f"🔴 **LIVE RUNNERS** · {count} active {noun} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
+        lines = [f"🔴 **PumpScanner Live Runners** · {count} active {noun} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
         for r in runners:
             emoji = tier_emoji(r["mult"])
             mint = r["mint"]

@@ -48,7 +48,7 @@ def build_digest_msg(hits: list, now_str: str) -> str:
     count = len(hits)
     noun  = "coin" if count == 1 else "coins"
     lines = [
-        f"📬 **MILESTONE DIGEST** · {count} new {noun} hit targets · {now_str}",
+        f"📬 **PumpScanner Milestone Digest** · {count} new {noun} hit targets · {now_str}",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
     for h in hits:
@@ -143,7 +143,7 @@ def main():
     try:
         from notifier.telegram_bot import TelegramNotifier
         # Convert to Telegram HTML (rebuild with platform=telegram)
-        tg_lines = ["📬 <b>MILESTONE DIGEST</b> · " + now_str, "━━━━━━━━━━━━━━━━━━━━━━"]
+        tg_lines = ["📬 <b>PumpScanner Milestone Digest</b> · " + now_str, "━━━━━━━━━━━━━━━━━━━━━━"]
         for h in hits:
             from utils.formatter import tier_emoji, fmt_usd
             emoji = tier_emoji(h["mult"])
