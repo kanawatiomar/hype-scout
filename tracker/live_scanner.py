@@ -24,8 +24,7 @@ if sys.platform == "win32":
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import (
-    LIVE_SCAN_STATE, TIER_COOLDOWN_MIN, PUMP_THRESHOLDS,
-    TRACK_MAX_AGE_HOURS, DATA_DIR, LOG_DIR,
+    LIVE_SCAN_STATE, TRACK_MAX_AGE_HOURS, DATA_DIR, LOG_DIR,
 )
 from utils.dexscreener import get_live_mc_batch
 from utils.formatter import format_single_runner
@@ -76,18 +75,26 @@ def save_state(state: dict):
         json.dump(state, f, indent=2)
 
 
-# ── Tier logic ────────────────────────────────────────────────────────────────
+# ── Alert logic ───────────────────────────────────────────────────────────────
+# Rules:
+#   1. Fire if current mult is a new all-time high for this coin
+#   2. Fire if >= 2h since last alert and coin still >= 2x (re-pump catch)
 
-def highest_new_threshold(mult: float, coin_alerts: dict, now: float) -> float | None:
-    cooldown = TIER_COOLDOWN_MIN * 60
-    for thresh in sorted(PUMP_THRESHOLDS, reverse=True):
-        if mult < thresh:
-            continue
-        key  = f"{thresh}x"
-        last = coin_alerts.get(key, 0)
-        if now - last >= cooldown:
-            return thresh
-    return None
+REPUMP_COOLDOWN = 7200  # 2 hours in seconds
+
+def should_alert(mult: float, coin_state: dict, now: float) -> bool:
+    peak       = coin_state.get("peak_mult", 0)
+    last_alert = coin_state.get("last_alerted_at", 0)
+
+    # Rule 1: new all-time high
+    if mult > peak:
+        return True
+
+    # Rule 2: re-pump after 2h silence
+    if mult >= 2.0 and (now - last_alert) >= REPUMP_COOLDOWN:
+        return True
+
+    return False
 
 
 # ── Single scan pass ──────────────────────────────────────────────────────────
@@ -123,13 +130,17 @@ def run_scan(state: dict) -> dict:
         if mult < 2.0:
             continue
 
-        coin_alerts = new_alerts.get(mint, {})
-        thresh = highest_new_threshold(mult, coin_alerts, now)
-        if thresh is None:
+        coin_state = new_alerts.get(mint, {})
+
+        if not should_alert(mult, coin_state, now):
             continue
 
-        coin_alerts[f"{thresh}x"] = now
-        new_alerts[mint] = coin_alerts
+        # Update state: track peak and last alert time
+        new_peak = max(mult, coin_state.get("peak_mult", 0))
+        new_alerts[mint] = {
+            "peak_mult":      new_peak,
+            "last_alerted_at": now,
+        }
 
         append_milestone({
             "mint":       mint,
@@ -146,7 +157,7 @@ def run_scan(state: dict) -> dict:
             "name":       coin.get("name", coin.get("symbol", "?")),
             "symbol":     coin.get("symbol", "?"),
             "mult":       mult,
-            "thresh":     thresh,
+            "thresh":     mult,  # actual mult used for display
             "entry_mc":   entry_mc,
             "current_mc": current_mc,
             "liq":        live["liq"],
