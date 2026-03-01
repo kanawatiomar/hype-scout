@@ -276,10 +276,38 @@ def format_runner_msg(runners: list, platform: str = "discord") -> str:
     return "\n".join(lines)
 
 
+def _leaderboard_timestamp() -> str:
+    """Return a clean, timezone-aware timestamp string for the leaderboard header."""
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("America/Denver"))
+        tz_abbr = now.strftime("%Z")  # MST or MDT
+    except Exception:
+        now = datetime.now()
+        tz_abbr = "MT"
+    # Windows-safe: strip leading zeros manually
+    month = now.strftime("%b")
+    day   = str(now.day)
+    year  = now.strftime("%Y")
+    hour  = str(now.hour % 12 or 12)
+    mins  = now.strftime("%M")
+    ampm  = now.strftime("%p")
+    return f"{month} {day}, {year} · {hour}:{mins} {ampm} {tz_abbr}"
+
+
+def _fmt_age_str(age_str: str) -> str:
+    """Convert ISO date string like '2026-03-01' to 'Mar 1'."""
+    try:
+        d = datetime.strptime(age_str[:10], "%Y-%m-%d")
+        return f"{d.strftime('%b')} {d.day}"
+    except Exception:
+        return age_str[:10]
+
+
 def format_leaderboard(coins: list, platform: str = "discord") -> str:
     """Format leaderboard top N coins."""
     medal = ["🥇", "🥈", "🥉"]
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    now   = _leaderboard_timestamp()
 
     GUILD_ID           = "1468193294432604326"
     DISCORD_ALERT_CH   = "1477161564460159097"
@@ -296,9 +324,10 @@ def format_leaderboard(coins: list, platform: str = "discord") -> str:
                 alert_link = f'<a href="https://t.me/c/{TG_CHANNEL_NUMERIC}/{tg_mid}">Alert</a>'
             else:
                 alert_link = f'<a href="https://pump.fun/{mint}">Chart</a>'
+            age = _fmt_age_str(c.get("age_str", ""))
             lines.append(
                 f"{rank} {emoji} <b>{c['name']}</b> — <b>{c['peak_mult']:.1f}x</b>\n"
-                f"    {fmt_usd(c['entry_mc'])} → {fmt_usd(c['peak_mc'])} | {c.get('age_str', '')} {alert_link}"
+                f"    {fmt_usd(c['entry_mc'])} → {fmt_usd(c['peak_mc'])} · {age} {alert_link}"
             )
     else:
         lines = [f"🏆 **PumpScanner Leaderboard** · Top {len(coins)} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
