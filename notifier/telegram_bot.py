@@ -32,18 +32,30 @@ logger = logging.getLogger(__name__)
 
 
 # ── Subscriber management ──────────────────────────────────────────────────────
+# Storage format: {"chat_id": {"chat_id": int, "username": str, "name": str, "joined_at": str}}
 
-def load_subscribers() -> list:
+def load_subscribers_raw() -> dict:
+    """Load full subscriber dict {str(chat_id): info}."""
     if not SUBSCRIBERS_FILE.exists():
-        return []
+        return {}
     try:
         with open(SUBSCRIBERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # Migrate old list format → new dict format
+            if isinstance(data, list):
+                return {str(cid): {"chat_id": cid, "username": "", "name": "", "joined_at": ""} for cid in data}
+            return data
     except Exception:
-        return []
+        return {}
 
 
-def save_subscribers(subs: list):
+def load_subscribers() -> list:
+    """Return list of chat_ids (int) for broadcasting."""
+    raw = load_subscribers_raw()
+    return [int(k) for k in raw.keys()]
+
+
+def save_subscribers(subs: dict):
     try:
         with open(SUBSCRIBERS_FILE, "w", encoding="utf-8") as f:
             json.dump(subs, f, indent=2)
@@ -51,22 +63,35 @@ def save_subscribers(subs: list):
         logger.error(f"Subscriber save error: {e}")
 
 
-def add_subscriber(chat_id: int) -> bool:
-    subs = load_subscribers()
-    if chat_id not in subs:
-        subs.append(chat_id)
+def add_subscriber(chat_id: int, username: str = "", name: str = "") -> bool:
+    subs = load_subscribers_raw()
+    key = str(chat_id)
+    if key not in subs:
+        subs[key] = {
+            "chat_id":   chat_id,
+            "username":  username,
+            "name":      name,
+            "joined_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
         save_subscribers(subs)
         return True
     return False
 
 
 def remove_subscriber(chat_id: int) -> bool:
-    subs = load_subscribers()
-    if chat_id in subs:
-        subs.remove(chat_id)
+    subs = load_subscribers_raw()
+    key = str(chat_id)
+    if key in subs:
+        del subs[key]
         save_subscribers(subs)
         return True
     return False
+
+
+def get_subscriber_list() -> list:
+    """Return list of subscriber info dicts, sorted by join date."""
+    raw = load_subscribers_raw()
+    return sorted(raw.values(), key=lambda x: x.get("joined_at", ""))
 
 
 # ── TelegramNotifier — broadcast helper ───────────────────────────────────────
@@ -99,9 +124,9 @@ class TelegramNotifier:
         """Broadcast a token alert to all subscribers. Returns success count."""
         if not self.token:
             return 0
-        msg = format_telegram_alert(alert_dict)
-        subs = load_subscribers()
-        ok = 0
+        msg  = format_telegram_alert(alert_dict)
+        subs = load_subscribers()  # returns list of int chat_ids
+        ok   = 0
         for chat_id in subs:
             if self._send(chat_id, msg):
                 ok += 1
@@ -112,11 +137,14 @@ class TelegramNotifier:
         if not self.token:
             return 0
         subs = load_subscribers()
-        ok = 0
+        ok   = 0
         for chat_id in subs:
             if self._send(chat_id, text):
                 ok += 1
         return ok
+
+    def get_subscriber_count(self) -> int:
+        return len(load_subscribers())
 
     def send_to(self, chat_id: int | str, text: str) -> bool:
         return self._send(chat_id, text)
@@ -159,12 +187,16 @@ async def run_bot():
         )
 
     async def cmd_subscribe(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        chat_id = update.effective_chat.id
-        if add_subscriber(chat_id):
+        chat_id  = update.effective_chat.id
+        user     = update.effective_user
+        username = f"@{user.username}" if user and user.username else ""
+        name     = user.full_name if user else ""
+        if add_subscriber(chat_id, username=username, name=name):
             await update.message.reply_html(
                 "✅ <b>Subscribed!</b> You'll now receive real-time Hype Scout alerts.\n\n"
                 "Use /unsubscribe to stop at any time."
             )
+            logger.info(f"New subscriber: {name} {username} (chat_id: {chat_id})")
         else:
             await update.message.reply_text("You're already subscribed! 🟢")
 
@@ -260,6 +292,30 @@ async def run_bot():
         msg = format_leaderboard(leaderboard[:10], platform="telegram")
         await update.message.reply_html(msg)
 
+    async def cmd_subscribers(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Admin command — shows full subscriber list with names and join dates."""
+        subs = get_subscriber_list()
+        if not subs:
+            await update.message.reply_text("No subscribers yet.")
+            return
+
+        lines = [f"👥 <b>Subscribers ({len(subs)} total)</b>\n"]
+        for i, s in enumerate(subs, 1):
+            name     = s.get("name", "Unknown")
+            username = s.get("username", "")
+            joined   = s.get("joined_at", "?")
+            chat_id  = s.get("chat_id", "?")
+            display  = f"{name}"
+            if username:
+                display += f" {username}"
+            lines.append(f"{i}. {display}\n   📅 {joined} · ID: <code>{chat_id}</code>")
+
+        # Split into chunks if too long
+        msg = "\n".join(lines)
+        if len(msg) > 4000:
+            msg = msg[:4000] + "\n…(truncated)"
+        await update.message.reply_html(msg)
+
     async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_html(
             "🤖 <b>Hype Scout Commands</b>\n\n"
@@ -269,19 +325,21 @@ async def run_bot():
             "/status — Scanner stats &amp; subscriber count\n"
             "/runners — Show active coins at 2x+\n"
             "/leaderboard — Top 10 performers today\n"
+            "/subscribers — View full subscriber list (admin)\n"
             "/help — This message\n\n"
             "📡 Scanning Pump.fun every 30 seconds for the next moonshot."
         )
 
     # ── Build and run app ─────────────────────────────────────────────────────
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("subscribe", cmd_subscribe))
+    app.add_handler(CommandHandler("start",       cmd_start))
+    app.add_handler(CommandHandler("subscribe",   cmd_subscribe))
     app.add_handler(CommandHandler("unsubscribe", cmd_unsubscribe))
-    app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("runners", cmd_runners))
+    app.add_handler(CommandHandler("status",      cmd_status))
+    app.add_handler(CommandHandler("runners",     cmd_runners))
     app.add_handler(CommandHandler("leaderboard", cmd_leaderboard))
-    app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("subscribers", cmd_subscribers))
+    app.add_handler(CommandHandler("help",        cmd_help))
 
     return app
 
