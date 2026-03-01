@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""
+tracker/runner_digest.py — Milestone digest (cron: every 10 min)
+
+Reads performance_milestones.jsonl + tracked_coins.jsonl.
+Finds coins not yet digested that hit >= 2x.
+Shows best milestone per coin, sorted highest first.
+
+Output:
+    DIGEST|<message>  → post to #early-trending-runners + Telegram
+    NO_NEW            → nothing new to digest
+"""
+import json
+import sys
+import io
+import time
+from datetime import datetime
+from pathlib import Path
+
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config import DIGEST_STATE, TRACK_MAX_AGE_HOURS, PUMP_THRESHOLDS
+from utils.formatter import tier_emoji, fmt_usd
+from utils.queue_utils import load_tracked, load_milestones
+
+DIGEST_INTERVAL = 600  # 10 minutes
+
+
+def load_state() -> dict:
+    if DIGEST_STATE.exists():
+        try:
+            with open(DIGEST_STATE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"last_digest": 0, "seen_keys": []}
+
+
+def save_state(state: dict):
+    with open(DIGEST_STATE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+
+
+def build_digest_msg(hits: list, now_str: str) -> str:
+    count = len(hits)
+    noun  = "coin" if count == 1 else "coins"
+    lines = [
+        f"📬 **MILESTONE DIGEST** · {count} new {noun} hit targets · {now_str}",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+    ]
+    for h in hits:
+        emoji = tier_emoji(h["mult"])
+        mint  = h["mint"]
+        dex   = f"https://dexscreener.com/solana/{mint}"
+        pump  = f"https://pump.fun/{mint}"
+        lines.append(
+            f"{emoji} **{h['name']}** hit **{h['mult']:.1f}x** "
+            f"({fmt_usd(h['entry_mc'])} → {fmt_usd(h['peak_mc'])})\n"
+            f"    [Chart](<{dex}>) · [Pump](<{pump}>)"
+        )
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+    return "\n".join(lines)
+
+
+def main():
+    force = "--force" in sys.argv
+    state = load_state()
+    now   = time.time()
+
+    elapsed = now - state.get("last_digest", 0)
+    if not force and elapsed < DIGEST_INTERVAL:
+        print("NO_NEW")
+        return
+
+    seen_keys = set(state.get("seen_keys", []))
+    coins     = load_tracked(max_age_hours=TRACK_MAX_AGE_HOURS)
+    milestones = load_milestones()
+
+    # Build best-multiplier map from milestones
+    best_mult: dict = {}  # mint → {mult, entry_mc, peak_mc, name}
+    for m in milestones:
+        mint = m.get("mint", "")
+        if mint in seen_keys:
+            continue
+        mult = m.get("multiplier", 0)
+        if mult < 2.0:
+            continue
+        existing = best_mult.get(mint)
+        if not existing or mult > existing["mult"]:
+            best_mult[mint] = {
+                "mint":     mint,
+                "mult":     mult,
+                "entry_mc": m.get("entry_mc", 0),
+                "peak_mc":  m.get("current_mc", 0),
+                "name":     m.get("name", coins.get(mint, {}).get("name", "?")),
+            }
+
+    # Also check tracked coins live multiplier (in case no milestone recorded)
+    for mint, c in coins.items():
+        if mint in seen_keys:
+            continue
+        entry_mc   = c.get("entry_mc", 0)
+        current_mc = c.get("current_mc", 0)
+        if entry_mc <= 0 or current_mc <= 0:
+            continue
+        mult = round(current_mc / entry_mc, 1)
+        if mult < 2.0:
+            continue
+        existing = best_mult.get(mint)
+        if not existing or mult > existing["mult"]:
+            best_mult[mint] = {
+                "mint":     mint,
+                "mult":     mult,
+                "entry_mc": entry_mc,
+                "peak_mc":  current_mc,
+                "name":     c.get("name", "?"),
+            }
+
+    if not best_mult:
+        state["last_digest"] = now
+        save_state(state)
+        print("NO_NEW")
+        return
+
+    hits = sorted(best_mult.values(), key=lambda x: -x["mult"])
+    now_str = datetime.now().strftime("%H:%M")
+    msg = build_digest_msg(hits, now_str)
+
+    # Update state
+    state["last_digest"] = now
+    state["seen_keys"]   = list(seen_keys | set(best_mult.keys()))
+    save_state(state)
+
+    print(f"DIGEST|{msg}")
+
+
+if __name__ == "__main__":
+    main()
