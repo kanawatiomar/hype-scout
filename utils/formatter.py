@@ -320,14 +320,18 @@ def format_leaderboard(coins: list, platform: str = "discord") -> str:
             emoji  = tier_emoji(c["peak_mult"])
             mint   = c.get("mint", "")
             tg_mid = c.get("telegram_msg_id")
+            age    = _fmt_age_str(c.get("age_str", ""))
+            name   = c['name']
+
+            # Make the coin name itself the clickable link to the original scan
             if tg_mid:
-                alert_link = f'<a href="https://t.me/c/{TG_CHANNEL_NUMERIC}/{tg_mid}">Alert</a>'
+                name_link = f'<a href="https://t.me/c/{TG_CHANNEL_NUMERIC}/{tg_mid}">{name}</a>'
             else:
-                alert_link = f'<a href="https://pump.fun/{mint}">Chart</a>'
-            age = _fmt_age_str(c.get("age_str", ""))
+                name_link = f'<a href="https://pump.fun/{mint}">{name}</a>'
+
             lines.append(
-                f"{rank} {emoji} <b>{c['name']}</b> — <b>{c['peak_mult']:.1f}x</b>\n"
-                f"    {fmt_usd(c['entry_mc'])} → {fmt_usd(c['peak_mc'])} · {age} {alert_link}"
+                f"{rank} {emoji} {name_link} — <b>{c['peak_mult']:.1f}x</b>\n"
+                f"    {fmt_usd(c['entry_mc'])} → {fmt_usd(c['peak_mc'])} · {age}"
             )
     else:
         lines = [f"🏆 **PumpScanner Leaderboard** · Top {len(coins)} · {now}", "━━━━━━━━━━━━━━━━━━━━━━"]
