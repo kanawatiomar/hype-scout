@@ -22,7 +22,7 @@ if sys.platform == "win32":
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import LEADERBOARD_STATE, TRACK_MAX_AGE_HOURS
+from config import LEADERBOARD_STATE, TRACK_MAX_AGE_HOURS, DISCORD_RUNNERS_CHANNEL
 from utils.formatter import format_leaderboard
 from utils.dexscreener import get_live_mc_batch
 from utils.queue_utils import load_tracked, load_milestones
@@ -126,9 +126,20 @@ def main():
     # Post to Discord + Telegram
     try:
         from notifier.discord_poster import DiscordPoster
-        DiscordPoster().post_runner(discord_msg)
+        discord = DiscordPoster()
+        msg_id  = discord.post_runner(discord_msg)
+
+        if msg_id:
+            # Unpin previous leaderboard message, then pin the new one
+            prev_pin = state.get("pinned_message_id")
+            if prev_pin:
+                discord.unpin_message(str(DISCORD_RUNNERS_CHANNEL), prev_pin)
+            if discord.pin_message(str(DISCORD_RUNNERS_CHANNEL), msg_id):
+                state["pinned_message_id"] = msg_id
+                save_state(state)  # persist the new pin ID
     except Exception as e:
         print(f"Discord error: {e}", file=sys.stderr)
+
     try:
         from notifier.telegram_bot import TelegramNotifier
         TelegramNotifier().broadcast_text(telegram_msg)
