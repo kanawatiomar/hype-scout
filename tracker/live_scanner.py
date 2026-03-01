@@ -31,7 +31,7 @@ from config import (
 )
 from utils.dexscreener import get_live_mc_batch
 from utils.formatter import format_runner_msg
-from utils.queue_utils import load_tracked
+from utils.queue_utils import load_tracked, append_milestone
 
 SCAN_INTERVAL = 300  # 5 minutes
 
@@ -113,6 +113,17 @@ def main():
 
         coin_alerts[f"{thresh}x"] = now
         new_alerts[mint] = coin_alerts
+
+        # Record milestone so leaderboard can show all-time peak
+        append_milestone({
+            "mint":       mint,
+            "name":       coin.get("name", coin.get("symbol", "?")),
+            "symbol":     coin.get("symbol", "?"),
+            "multiplier": mult,
+            "entry_mc":   entry_mc,
+            "current_mc": current_mc,
+            "timestamp":  now,
+        })
 
         runners.append({
             "mint":       mint,
