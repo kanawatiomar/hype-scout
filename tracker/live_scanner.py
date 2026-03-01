@@ -81,17 +81,23 @@ def save_state(state: dict):
 #   2. Fire if >= 2h since last alert and coin still >= 2x (re-pump catch)
 
 REPUMP_COOLDOWN = 7200  # 2 hours in seconds
+MIN_ALERT_GAP   = 600   # 10 minutes minimum between any alerts for same coin
 
 def should_alert(mult: float, coin_state: dict, now: float) -> bool:
     peak       = coin_state.get("peak_mult", 0)
     last_alert = coin_state.get("last_alerted_at", 0)
+    since_last = now - last_alert
+
+    # Enforce 10-min minimum gap regardless of anything else
+    if since_last < MIN_ALERT_GAP:
+        return False
 
     # Rule 1: new all-time high
     if mult > peak:
         return True
 
     # Rule 2: re-pump after 2h silence
-    if mult >= 2.0 and (now - last_alert) >= REPUMP_COOLDOWN:
+    if mult >= 2.0 and since_last >= REPUMP_COOLDOWN:
         return True
 
     return False
