@@ -201,6 +201,8 @@ def format_single_runner(r: dict, platform: str = "discord") -> str:
             f"\n"
             f"{bags}\n"
             f"\n"
+            f"<code>{mint}</code>\n"
+            f"\n"
             f'<a href="{dex_url}">Chart</a> · <a href="{pump_url}">Pump</a>'
         )
     else:  # discord
@@ -211,6 +213,8 @@ def format_single_runner(r: dict, platform: str = "discord") -> str:
             f"{mc_arrow} 💵\n"
             f"\n"
             f"{bags}\n"
+            f"\n"
+            f"`{mint}`\n"
             f"\n"
             f"[Chart](<{dex_url}>) · [Pump](<{pump_url}>)"
         )
