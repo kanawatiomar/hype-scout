@@ -81,7 +81,7 @@ def main():
     milestones = load_milestones()
 
     # Build best-multiplier map from milestones
-    best_mult: dict = {}  # mint → {mult, entry_mc, peak_mc, name}
+    best_mult: dict = {}  # mint → {mult, entry_mc, peak_mc, name, telegram_msg_id}
     for m in milestones:
         mint = m.get("mint", "")
         if mint in seen_keys:
@@ -91,12 +91,14 @@ def main():
             continue
         existing = best_mult.get(mint)
         if not existing or mult > existing["mult"]:
+            tg_mid = coins.get(mint, {}).get("telegram_msg_id") or m.get("telegram_msg_id")
             best_mult[mint] = {
-                "mint":     mint,
-                "mult":     mult,
-                "entry_mc": m.get("entry_mc", 0),
-                "peak_mc":  m.get("current_mc", 0),
-                "name":     m.get("name", coins.get(mint, {}).get("name", "?")),
+                "mint":            mint,
+                "mult":            mult,
+                "entry_mc":        m.get("entry_mc", 0),
+                "peak_mc":         m.get("current_mc", 0),
+                "name":            m.get("name", coins.get(mint, {}).get("name", "?")),
+                "telegram_msg_id": tg_mid,
             }
 
     # Also check tracked coins live multiplier (in case no milestone recorded)
@@ -113,11 +115,12 @@ def main():
         existing = best_mult.get(mint)
         if not existing or mult > existing["mult"]:
             best_mult[mint] = {
-                "mint":     mint,
-                "mult":     mult,
-                "entry_mc": entry_mc,
-                "peak_mc":  current_mc,
-                "name":     c.get("name", "?"),
+                "mint":            mint,
+                "mult":            mult,
+                "entry_mc":        entry_mc,
+                "peak_mc":         current_mc,
+                "name":            c.get("name", "?"),
+                "telegram_msg_id": c.get("telegram_msg_id"),
             }
 
     if not best_mult:
@@ -149,12 +152,18 @@ def main():
             f"<i>New milestones in the last 10 min — {len(hits)} coin{'s' if len(hits) != 1 else ''}</i>",
             "━━━━━━━━━━━━━━━━━━━━━━",
         ]
+        TG_CHANNEL_NUMERIC = "3816610028"
         for h in hits:
             from utils.formatter import tier_emoji, fmt_usd
-            emoji = tier_emoji(h["mult"])
-            mint  = h["mint"]
+            emoji  = tier_emoji(h["mult"])
+            mint   = h["mint"]
+            tg_mid = h.get("telegram_msg_id")
+            if tg_mid:
+                name_link = f'<a href="https://t.me/c/{TG_CHANNEL_NUMERIC}/{tg_mid}">{h["name"]}</a>'
+            else:
+                name_link = f'<a href="https://pump.fun/{mint}">{h["name"]}</a>'
             tg_lines.append(
-                f'{emoji} <b>{h["name"]}</b> hit <b>{h["mult"]:.1f}x</b> '
+                f'{emoji} {name_link} hit <b>{h["mult"]:.1f}x</b> '
                 f'({fmt_usd(h["entry_mc"])} → {fmt_usd(h["peak_mc"])})\n'
                 f'    <a href="https://dexscreener.com/solana/{mint}">Chart</a> · '
                 f'<a href="https://pump.fun/{mint}">Pump</a>'
