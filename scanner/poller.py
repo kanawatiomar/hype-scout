@@ -35,8 +35,8 @@ from utils.helius import get_holder_count, get_dev_holding_pct
 from utils.queue_utils import append_to_queue, append_seen_mint, load_seen_mints
 
 # ── Filter thresholds ─────────────────────────────────────────────────────────
-MAX_DEV_PCT        = 15.0  # skip if creator holds > 15% of supply
-MAX_BUY_SELL_RATIO = 8.0   # skip if buys:sells > 8:1 (only for tokens > 10 min old)
+MAX_DEV_PCT        = 10.0  # skip if creator holds > 10% of supply
+MAX_BUY_SELL_RATIO = 5.0   # skip if buys:sells > 5:1 (only for tokens > 10 min old)
 MIN_AGE_FOR_BS_CHECK = 10  # minutes — don't apply buy/sell filter to brand new tokens
 
 # ── Logging ───────────────────────────────────────────────────────────────────
