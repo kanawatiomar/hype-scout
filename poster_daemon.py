@@ -47,6 +47,31 @@ logger = logging.getLogger("poster")
 discord   = DiscordPoster()
 telegram  = TelegramNotifier() if TELEGRAM_BOT_TOKEN else None
 
+# ── Name-based dedup ──────────────────────────────────────────────────────────
+# Prevents same-name copycat tokens from posting multiple times in a short window.
+# Key: normalized name → unix timestamp of last post
+NAME_COOLDOWN_SECS = 900  # 15 minutes
+_name_last_posted: dict = {}
+
+def _normalize_name(name: str) -> str:
+    """Lowercase, strip whitespace. Ignores emoji/unicode differences."""
+    import unicodedata
+    nfkd = unicodedata.normalize("NFKD", name or "")
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+def _name_on_cooldown(name: str) -> bool:
+    key = _normalize_name(name)
+    last = _name_last_posted.get(key, 0)
+    return (time.time() - last) < NAME_COOLDOWN_SECS
+
+def _record_name_posted(name: str):
+    key = _normalize_name(name)
+    _name_last_posted[key] = time.time()
+    # Prune old entries to avoid unbounded growth
+    cutoff = time.time() - NAME_COOLDOWN_SECS * 2
+    for k in [k for k, v in _name_last_posted.items() if v < cutoff]:
+        del _name_last_posted[k]
+
 
 # ── Lock ──────────────────────────────────────────────────────────────────────
 
@@ -131,6 +156,13 @@ def process_queue():
 
     for mint, items in to_post.items():
         best = max(items, key=lambda x: x.get("ath_market_cap", 0))
+        coin_name = best.get("name", "")
+
+        # Skip same-name copycats posted within the last 15 min
+        if _name_on_cooldown(coin_name):
+            logger.info(f"⏭ Skipped duplicate name '{coin_name}' (cooldown active)")
+            posted_mints.add(mint)  # mark as handled so it leaves the queue
+            continue
 
         # Format messages
         try:
@@ -152,6 +184,7 @@ def process_queue():
 
         if discord_msg_id:
             posted_mints.add(mint)
+            _record_name_posted(coin_name)
             append_tracked(make_tracked_entry(
                 best,
                 discord_msg_id=discord_msg_id,
