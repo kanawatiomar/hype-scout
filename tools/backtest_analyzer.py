@@ -31,7 +31,7 @@ import requests
 # ── Config ─────────────────────────────────────────────────────────────────────
 SCAN_LOG_FILE    = DATA_DIR / "scan_log.jsonl"
 MILESTONES_FILE  = DATA_DIR / "performance_milestones.jsonl"
-DISCORD_CHANNEL  = "1475223354066600036"   # #bot-logs
+DISCORD_CHANNEL  = "1477161566808834201"   # #scout-stats
 
 # Runner thresholds we care about
 RUNNER_TIERS = [2.0, 5.0, 10.0]
