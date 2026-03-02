@@ -171,6 +171,26 @@ class TelegramNotifier:
             logger.error(f"Telegram send error: {e}")
             return None
 
+    def _send_photo(self, chat_id: int | str, photo_url: str, caption: str, parse_mode: str = "HTML") -> int | None:
+        """Send a photo with caption. Falls back to text if photo fails."""
+        import requests as req_lib
+        url = f"{self._base}/sendPhoto"
+        try:
+            resp = req_lib.post(url, json={
+                "chat_id":    chat_id,
+                "photo":      photo_url,
+                "caption":    caption[:1024],
+                "parse_mode": parse_mode,
+            }, timeout=15)
+            if resp.ok:
+                return resp.json().get("result", {}).get("message_id")
+            # Photo URL may be dead/invalid — fall back to text silently
+            logger.warning(f"sendPhoto {resp.status_code}, falling back to text")
+            return self._send(chat_id, caption, parse_mode)
+        except Exception as e:
+            logger.error(f"Telegram sendPhoto error: {e}")
+            return self._send(chat_id, caption, parse_mode)
+
     def _all_targets(self) -> list:
         """All chat IDs to broadcast to: subscribers + public channel (if set)."""
         targets = list(load_subscribers())
@@ -201,8 +221,13 @@ class TelegramNotifier:
             except ValueError:
                 pass
 
+        image_uri = alert_dict.get("image_uri", "")
+
         for chat_id in self._all_targets():
-            msg_id = self._send(chat_id, msg)
+            if image_uri:
+                msg_id = self._send_photo(chat_id, image_uri, msg)
+            else:
+                msg_id = self._send(chat_id, msg)
             if msg_id:
                 ok += 1
                 # Capture the channel post message ID for jump links

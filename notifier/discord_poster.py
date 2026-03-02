@@ -72,8 +72,35 @@ class DiscordPoster:
             logger.error(f"Discord unpin error: {e}")
             return False
 
-    def post_alert(self, content: str) -> str | None:
+    def _send_embed(self, channel_id: str, content: str, image_url: str = "") -> str | None:
+        """Send a Discord embed with optional thumbnail. Falls back to plain text if embed fails."""
+        if not self.token:
+            return None
+        url = DISCORD_API.format(channel_id)
+        embed = {
+            "description": content[:4096],
+            "color": 0x00E676,  # bright green accent
+        }
+        if image_url:
+            embed["thumbnail"] = {"url": image_url}
+        try:
+            resp = requests.post(url, json={"embeds": [embed]}, headers={
+                "Authorization": f"Bot {self.token}",
+                "User-Agent": "HypeScout/2.0",
+            }, timeout=15)
+            if resp.ok:
+                return resp.json().get("id")
+            # Embed failed (e.g. bad image URL) — fall back to plain text
+            logger.warning(f"Discord embed {resp.status_code}, falling back to text")
+            return self._send(channel_id, content)
+        except Exception as e:
+            logger.error(f"Discord embed error: {e}")
+            return self._send(channel_id, content)
+
+    def post_alert(self, content: str, image_url: str = "") -> str | None:
         """Post a token alert to the early-trending channel. Returns message ID."""
+        if image_url:
+            return self._send_embed(DISCORD_EARLY_TRENDING_CHANNEL, content, image_url)
         return self._send(DISCORD_EARLY_TRENDING_CHANNEL, content)
 
     def post_runner(self, content: str) -> str | None:

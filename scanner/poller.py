@@ -185,6 +185,7 @@ async def analyze_token(token: dict) -> dict | None:
 
         return {
             **candidate,
+            "image_uri":       token.get("image_uri") or token.get("image") or "",
             "dexscreener_url": f"https://dexscreener.com/solana/{mint}",
             "pump_url":        f"https://pump.fun/{mint}",
             "tier":            "early",

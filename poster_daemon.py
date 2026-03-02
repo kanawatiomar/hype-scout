@@ -142,7 +142,7 @@ def process_queue():
             continue
 
         # Post to Discord — capture message ID for jump links
-        discord_msg_id = discord.post_alert(discord_msg)
+        discord_msg_id = discord.post_alert(discord_msg, image_url=best.get("image_uri", ""))
 
         # Post to Telegram — capture channel message ID for jump links
         tg_ok = 0
